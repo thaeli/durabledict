@@ -2,7 +2,6 @@ from durabledict.base import DurableDict
 
 
 class ModelDict(DurableDict):
-
     """
     Dictionary-style access to a model. Populates a cache and a local in-memory
     to avoid multiple hits to the database.
@@ -49,25 +48,18 @@ class ModelDict(DurableDict):
     # details.
     LAST_UPDATED_MISSING_INCREMENT = 1000
 
-    def __init__(
-        self,
-        manager=None,
-        cache=None,
-        key_col='key',
-        value_col='value',
-        return_instances=False,
-        **kwargs
-    ):
+    def __init__(self, manager, cache, *args, **kwargs):
         self.manager = manager
         self.cache = cache
         self.cache_key = 'last_updated'
-        self.return_instances = return_instances
-        self.key_col = key_col
-        self.value_col = value_col
+        self.return_instances = kwargs.pop('return_instances', False)
+
+        self.key_col = kwargs.pop('key_col', 'key')
+        self.value_col = kwargs.pop('value_col', 'value')
 
         self.cache.add(self.cache_key, 1)  # Only adds if key does not exist
 
-        super(ModelDict, self).__init__(**kwargs)
+        super(ModelDict, self).__init__(*args, **kwargs)
 
     def persist(self, key, val):
         instance, created = self.get_or_create(key, val)

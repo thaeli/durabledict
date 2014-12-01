@@ -1,8 +1,7 @@
-from durabledict.base import ConnectionDurableDict
+from durabledict.base import DurableDict
 
 
-class RedisDict(ConnectionDurableDict):
-
+class RedisDict(DurableDict):
     """
     Dictionary-style access to a redis hash table. Populates a cache and a local
     in-memory to avoid multiple hits to the database.
@@ -13,9 +12,10 @@ class RedisDict(ConnectionDurableDict):
         mydict['test']
         >>> 'bar' #doctest: +SKIP
     """
-
-    def __init__(self, **kwargs):
-        super(RedisDict, self).__init__(**kwargs)
+    def __init__(self, keyspace, connection, *args, **kwargs):
+        self.keyspace = keyspace
+        self.conn = connection
+        super(RedisDict, self).__init__(*args, **kwargs)
         self.__touch_last_updated()
 
     def persist(self, key, value):
@@ -26,12 +26,12 @@ class RedisDict(ConnectionDurableDict):
         self.__touch_and_multi(('hdel', (self.keyspace, key)))
 
     def durables(self):
-        encoded = self.connection.hgetall(self.keyspace)
+        encoded = self.conn.hgetall(self.keyspace)
         tuples = [(k, self.encoding.decode(v)) for k, v in encoded.items()]
         return dict(tuples)
 
     def last_updated(self):
-        return int(self.connection.get(self.__last_update_key) or 0)
+        return int(self.conn.get(self.__last_update_key) or 0)
 
     # TODO: setdefault always touches the last_updated value, even if the key
     # existed already.  It should only touch last_updated if the key did not
@@ -65,7 +65,7 @@ class RedisDict(ConnectionDurableDict):
         from the results list.  If ``returns`` is None, returns all values.
         """
 
-        with self.connection.pipeline() as pipe:
+        with self.conn.pipeline() as pipe:
             pipe.incr(self.__last_update_key)
             [getattr(pipe, function)(*a) for function, a in args]
             results = pipe.execute()
@@ -76,7 +76,7 @@ class RedisDict(ConnectionDurableDict):
                 return results
 
     def __touch_last_updated(self):
-        return self.connection.incr(self.__last_update_key)
+        return self.conn.incr(self.__last_update_key)
 
     @property
     def __last_update_key(self):
